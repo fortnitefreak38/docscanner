@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # Manueller Trigger
+  workflow_dispatch:
 
 jobs:
   build:
@@ -61,23 +61,50 @@ jobs:
           pip install buildozer
           pip install -r requirements.txt
       
-      - name: Verify buildozer.spec
-        run: |
-          echo "=== buildozer.spec ==="
-          cat buildozer.spec
-      
       - name: Build APK with Buildozer
+        id: build
         run: |
-          # Clean previous builds
-          buildozer android clean || true
+          set -e
+          echo "=== Starting Buildozer Build ==="
+          date
           
-          # Build debug APK
-          buildozer -v android debug
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+          # Clean previous builds
+          echo "Cleaning previous builds..."
+          buildozer android clean 2>&1 | tee -a build.log || true
+          
+          # Build with full logging
+          echo "Building debug APK..."
+          buildozer -v android debug 2>&1 | tee -a build.log
+          
+          echo "=== Build completed ==="
+          date
+          
+          # Show last 100 lines of log if build failed
+          if [ $? -ne 0 ]; then
+            echo ""
+            echo "========================================="
+            echo "❌ BUILD FAILED - Last 100 lines of log:"
+            echo "========================================="
+            tail -n 100 build.log
+            echo ""
+            echo "========================================="
+            echo "Searching for ERROR in full log:"
+            echo "========================================="
+            grep -i "error\|exception\|failed" build.log | tail -n 50
+            exit 1
+          fi
+        continue-on-error: false
+      
+      - name: Save build log as artifact (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-error-log
+          path: build.log
+          retention-days: 7
       
       - name: Upload APK artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: docscanner-debug-apk
@@ -86,25 +113,10 @@ jobs:
           retention-days: 30
       
       - name: Create Release (on tag)
-        uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
         with:
           files: bin/*.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Print build info
-        run: |
-          echo "==================================="
-          echo "✓ Build completed!"
-          echo "==================================="
-          echo ""
-          echo "APK location: bin/*.apk"
-          echo ""
-          echo "To download:"
-          echo "  1. Go to Actions tab"
-          echo "  2. Click on this workflow run"
-          echo "  3. Download artifact 'docscanner-debug-apk'"
-          echo ""
-          ls -lh bin/ || echo "No APK found"
