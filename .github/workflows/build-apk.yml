@@ -17,10 +17,10 @@ jobs:
         with:
           submodules: recursive
       
-      - name: Set up Python 3.8
+      - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: 3.8
+          python-version: '3.10'
           cache: 'pip'
       
       - name: Install system dependencies
@@ -42,8 +42,18 @@ jobs:
             cmake \
             git \
             wget \
-            unzip
+            unzip \
+            openjdk-17-jdk \
+            android-sdk-build-tools
           sudo rm -rf /var/lib/apt/lists/*
+      
+      - name: Set up Android SDK
+        run: |
+          mkdir -p ~/.android/sdk
+          export ANDROID_HOME=~/.android/sdk
+          export ANDROID_SDK_ROOT=~/.android/sdk
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
       
       - name: Install Python dependencies
         run: |
@@ -64,8 +74,8 @@ jobs:
           # Build debug APK
           buildozer -v android debug
         env:
-          ANDROID_HOME: /usr/local/android-sdk
-          ANDROID_SDK_ROOT: /usr/local/android-sdk
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
       
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -97,4 +107,4 @@ jobs:
           echo "  2. Click on this workflow run"
           echo "  3. Download artifact 'docscanner-debug-apk'"
           echo ""
-          ls -lh bin/
+          ls -lh bin/ || echo "No APK found"
