@@ -11,6 +11,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
+    env:
+      # Use more reliable mirrors
+      P4A_DEFAULT_MIRROR: "https://raw.githubusercontent.com/kivy/python-for-android/develop"
+      BUILDODOZER_USE_CCACHE: "0"
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -44,7 +49,8 @@ jobs:
             wget \
             unzip \
             openjdk-17-jdk \
-            android-sdk-build-tools
+            android-sdk-build-tools \
+            ccache
           sudo rm -rf /var/lib/apt/lists/*
       
       - name: Set up Android SDK
@@ -55,11 +61,66 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
       
-      - name: Install Python dependencies
+      - name: Install Python dependencies with retries
         run: |
           pip install --upgrade pip
-          pip install buildozer
-          pip install -r requirements.txt
+          
+          # Retry logic for network issues
+          echo "Installing buildozer (with retries)..."
+          for i in 1 2 3; do
+            pip install buildozer && break || {
+              echo "Attempt $i failed, retrying in 5s..."
+              sleep 5
+            }
+          done
+          
+          echo "Installing requirements (with retries)..."
+          for i in 1 2 3; do
+            pip install -r requirements.txt && break || {
+              echo "Attempt $i failed, retrying in 5s..."
+              sleep 5
+            }
+          done
+      
+      - name: Pre-download Android NDK (more reliable mirror)
+        run: |
+          echo "Pre-downloading Android NDK r25b..."
+          mkdir -p ~/.buildozer/android/platform
+          cd ~/.buildozer/android/platform
+          
+          # Use Google's direct mirror
+          for i in 1 2 3; do
+            wget -q --show-progress \
+              "https://dl.google.com/android/repository/android-ndk-r25b-linux.zip" \
+              -O android-ndk-r25b.zip && break || {
+              echo "Download attempt $i failed, retrying in 10s..."
+              sleep 10
+            }
+          done
+          
+          echo "Extracting NDK..."
+          unzip -q android-ndk-r25b.zip
+          ln -sf android-ndk-r25b android-ndk-r25b
+          
+          # Also pre-download SDK tools
+          echo "Pre-downloading SDK tools..."
+          mkdir -p ~/.buildozer/android/platform/android-sdk
+          cd ~/.buildozer/android/platform/android-sdk
+          
+          for i in 1 2 3; do
+            wget -q --show-progress \
+              "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+              -O cmdline-tools.zip && break || {
+              echo "SDK download attempt $i failed, retrying in 10s..."
+              sleep 10
+            }
+          done
+          
+          unzip -q cmdline-tools.zip
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+          
+          echo "✓ Pre-downloaded NDK and SDK"
       
       - name: Build APK with Buildozer
         id: build
@@ -68,13 +129,35 @@ jobs:
           echo "=== Starting Buildozer Build ==="
           date
           
+          cd $GITHUB_WORKSPACE
+          
           # Clean previous builds
           echo "Cleaning previous builds..."
           buildozer android clean 2>&1 | tee -a build.log || true
           
-          # Build with full logging
+          # Build with full logging and retries
           echo "Building debug APK..."
-          buildozer -v android debug 2>&1 | tee -a build.log
+          
+          MAX_RETRIES=2
+          RETRY_COUNT=0
+          BUILD_SUCCESS=false
+          
+          while [ $RETRY_COUNT -le $MAX_RETRIES ] && [ "$BUILD_SUCCESS" = false ]; do
+            echo "Build attempt $((RETRY_COUNT + 1))..."
+            if buildozer -v android debug 2>&1 | tee -a build.log; then
+              BUILD_SUCCESS=true
+              echo "✓ Build successful!"
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -le $MAX_RETRIES ]; then
+                echo "Build failed, retrying in 30s..."
+                sleep 30
+              else
+                echo "❌ Build failed after $MAX_RETRIES retries"
+                exit 1
+              fi
+            fi
+          done
           
           echo "=== Build completed ==="
           date
