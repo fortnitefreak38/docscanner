@@ -1,0 +1,25 @@
+# Build outputs
+bin/
+*.apk
+*.aab
+*.apks
+
+# Buildozer
+.buildozer/
+*.pyc
+__pycache__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+tests/
+*.log
