@@ -7,7 +7,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
 
-requirements = python3,kivy==2.3.0,opencv,pyjnius,pil,android
+requirements = python3,kivy==2.3.0,pil,android,pyjnius
 orientation = portrait
 android.permissions = CAMERA,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,INTERNET
 android.api = 33

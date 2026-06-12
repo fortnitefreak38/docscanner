@@ -44,8 +44,7 @@ jobs:
             wget \
             unzip \
             openjdk-17-jdk \
-            android-sdk-build-tools \
-            libopencv-dev
+            android-sdk-build-tools
           sudo rm -rf /var/lib/apt/lists/*
       
       - name: Set up Android SDK
