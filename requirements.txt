@@ -1,0 +1,5 @@
+kivy==2.3.0
+opencv-python-headless
+pillow
+pytesseract
+reportlab

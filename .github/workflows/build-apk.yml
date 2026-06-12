@@ -49,12 +49,11 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install buildozer
-          pip install kivy opencv-python-headless pillow reportlab pytesseract
+          pip install -r requirements.txt
       
-      - name: Initialize Buildozer
+      - name: Verify buildozer.spec
         run: |
-          # buildozer.spec existiert bereits
-          # Sicherstellen dass es korrekt ist
+          echo "=== buildozer.spec ==="
           cat buildozer.spec
       
       - name: Build APK with Buildozer
