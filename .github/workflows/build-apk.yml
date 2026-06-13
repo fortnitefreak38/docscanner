@@ -15,13 +15,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Debug - Show buildozer.spec BEFORE build
+      - name: Clean .buildozer cache (force fresh build)
         run: |
-          echo "=== CONTENTS OF buildozer.spec ==="
+          echo "Removing old .buildozer cache..."
+          rm -rf .buildozer
+          echo "Cache removed. Starting fresh."
+          ls -la
+      
+      - name: Show buildozer.spec
+        run: |
+          echo "=== CURRENT buildozer.spec ==="
           cat buildozer.spec
           echo "=== REQUIREMENTS LINE ==="
           grep "^requirements" buildozer.spec
-          echo "=========================================="
       
       - name: Install pip requirements
         run: |
@@ -30,15 +36,9 @@ jobs:
             pip3 install -r requirements.txt || echo "Requirements install failed"
           fi
       
-      - name: Clean previous builds
-        run: |
-          buildozer android clean || echo "Clean failed"
-      
       - name: Build Debug APK
         run: |
           echo "Starting build at $(date)"
-          echo "Current directory: $(pwd)"
-          echo "Files: $(ls -la)"
           buildozer android debug
           echo "Build finished at $(date)"
           ls -lh bin/
