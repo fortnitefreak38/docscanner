@@ -15,34 +15,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Show environment
+      - name: Debug - Show buildozer.spec BEFORE build
         run: |
-          echo "Python version:"
-          python3 --version
-          echo "Buildozer version:"
-          buildozer --version
-          echo "Android SDK:"
-          echo $ANDROID_HOME
-          echo "Android NDK:"
-          echo $ANDROID_NDK_HOME
+          echo "=== CONTENTS OF buildozer.spec ==="
+          cat buildozer.spec
+          echo "=== REQUIREMENTS LINE ==="
+          grep "^requirements" buildozer.spec
+          echo "=========================================="
       
       - name: Install pip requirements
         run: |
           pip3 install --upgrade pip
           if [ -f requirements.txt ]; then
-            pip3 install -r requirements.txt || echo "Some requirements may have failed"
+            pip3 install -r requirements.txt || echo "Requirements install failed"
           fi
-      
-      - name: Show buildozer.spec
-        run: cat buildozer.spec
       
       - name: Clean previous builds
         run: |
-          buildozer android clean || echo "Clean failed, continuing..."
+          buildozer android clean || echo "Clean failed"
       
       - name: Build Debug APK
         run: |
           echo "Starting build at $(date)"
+          echo "Current directory: $(pwd)"
+          echo "Files: $(ls -la)"
           buildozer android debug
           echo "Build finished at $(date)"
           ls -lh bin/
