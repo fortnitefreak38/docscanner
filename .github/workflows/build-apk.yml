@@ -1,35 +1,55 @@
 name: Build Android APK
 
 on:
-  workflow_dispatch:  # Nur manueller Trigger - zuverlässiger
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    container:
+      image: kivy/buildozer:latest
+      options: --user root
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Build APK using pre-built container
-        uses: docker://kivy/buildozer:v1.5.0
-        with:
-          entrypoint: /bin/bash
-          args: |
-            -c '
-            set -e
-            cd /host
-            echo "=== Build Starting ==="
-            buildozer android clean 2>/dev/null || true
-            buildozer android debug 2>&1 || {
-              echo "Build failed!"
-              exit 1
-            }
-            echo "=== Build Complete ==="
-            '
+      - name: Show environment
+        run: |
+          echo "Python version:"
+          python3 --version
+          echo "Buildozer version:"
+          buildozer --version
+          echo "Android SDK:"
+          echo $ANDROID_HOME
+          echo "Android NDK:"
+          echo $ANDROID_NDK_HOME
+      
+      - name: Install pip requirements
+        run: |
+          pip3 install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip3 install -r requirements.txt || echo "Some requirements may have failed"
+          fi
+      
+      - name: Show buildozer.spec
+        run: cat buildozer.spec
+      
+      - name: Clean previous builds
+        run: |
+          buildozer android clean || echo "Clean failed, continuing..."
+      
+      - name: Build Debug APK
+        run: |
+          echo "Starting build at $(date)"
+          buildozer android debug
+          echo "Build finished at $(date)"
+          ls -lh bin/
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: docscanner.apk
+          name: docscanner-debug.apk
           path: bin/*.apk
+          retention-days: 30
