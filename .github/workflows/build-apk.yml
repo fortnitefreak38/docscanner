@@ -9,12 +9,9 @@ on:
 
 jobs:
   build:
+    # Use pre-built Docker image with all Android dependencies
     runs-on: ubuntu-latest
-    
-    env:
-      # Use more reliable mirrors
-      P4A_DEFAULT_MIRROR: "https://raw.githubusercontent.com/kivy/python-for-android/develop"
-      BUILDODOZER_USE_CCACHE: "0"
+    container: kivy/buildozer:latest
     
     steps:
       - name: Checkout code
@@ -22,171 +19,49 @@ jobs:
         with:
           submodules: recursive
       
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          cache: 'pip'
-      
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            python3-setuptools \
-            build-essential \
-            libffi-dev \
-            libssl-dev \
-            libjpeg-dev \
-            libpng-dev \
-            libfreetype6-dev \
-            libharfbuzz-dev \
-            autoconf \
-            automake \
-            libtool \
-            cmake \
-            git \
-            wget \
-            unzip \
-            openjdk-17-jdk \
-            android-sdk-build-tools \
-            ccache
-          sudo rm -rf /var/lib/apt/lists/*
-      
-      - name: Set up Android SDK
-        run: |
-          mkdir -p ~/.android/sdk
-          export ANDROID_HOME=~/.android/sdk
-          export ANDROID_SDK_ROOT=~/.android/sdk
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-      
-      - name: Install Python dependencies with retries
+      - name: Install requirements
         run: |
           pip install --upgrade pip
-          
-          # Retry logic for network issues
-          echo "Installing buildozer (with retries)..."
-          for i in 1 2 3; do
-            pip install buildozer && break || {
-              echo "Attempt $i failed, retrying in 5s..."
-              sleep 5
-            }
-          done
-          
-          echo "Installing requirements (with retries)..."
-          for i in 1 2 3; do
-            pip install -r requirements.txt && break || {
-              echo "Attempt $i failed, retrying in 5s..."
-              sleep 5
-            }
-          done
+          pip install -r requirements.txt || echo "Requirements install failed, continuing..."
       
-      - name: Pre-download Android NDK (more reliable mirror)
-        run: |
-          echo "Pre-downloading Android NDK r25b..."
-          mkdir -p ~/.buildozer/android/platform
-          cd ~/.buildozer/android/platform
-          
-          # Use Google's direct mirror
-          for i in 1 2 3; do
-            wget -q --show-progress \
-              "https://dl.google.com/android/repository/android-ndk-r25b-linux.zip" \
-              -O android-ndk-r25b.zip && break || {
-              echo "Download attempt $i failed, retrying in 10s..."
-              sleep 10
-            }
-          done
-          
-          echo "Extracting NDK..."
-          unzip -q android-ndk-r25b.zip
-          ln -sf android-ndk-r25b android-ndk-r25b
-          
-          # Also pre-download SDK tools
-          echo "Pre-downloading SDK tools..."
-          mkdir -p ~/.buildozer/android/platform/android-sdk
-          cd ~/.buildozer/android/platform/android-sdk
-          
-          for i in 1 2 3; do
-            wget -q --show-progress \
-              "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
-              -O cmdline-tools.zip && break || {
-              echo "SDK download attempt $i failed, retrying in 10s..."
-              sleep 10
-            }
-          done
-          
-          unzip -q cmdline-tools.zip
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-          
-          echo "✓ Pre-downloaded NDK and SDK"
+      - name: Show buildozer.spec
+        run: cat buildozer.spec
       
-      - name: Build APK with Buildozer
+      - name: Build APK
         id: build
         run: |
-          set -e
-          echo "=== Starting Buildozer Build ==="
+          echo "=== Starting Build ==="
           date
           
-          cd $GITHUB_WORKSPACE
+          # Set up environment
+          export ANDROID_HOME=/opt/android-sdk
+          export ANDROID_SDK_ROOT=/opt/android-sdk
+          export ANDROID_NDK_HOME=/opt/android-ndk
+          export NDK_HOME=/opt/android-ndk
           
-          # Clean previous builds
-          echo "Cleaning previous builds..."
-          buildozer android clean 2>&1 | tee -a build.log || true
+          # Clean
+          buildozer android clean || true
           
-          # Build with full logging and retries
-          echo "Building debug APK..."
-          
-          MAX_RETRIES=2
-          RETRY_COUNT=0
-          BUILD_SUCCESS=false
-          
-          while [ $RETRY_COUNT -le $MAX_RETRIES ] && [ "$BUILD_SUCCESS" = false ]; do
-            echo "Build attempt $((RETRY_COUNT + 1))..."
-            if buildozer -v android debug 2>&1 | tee -a build.log; then
-              BUILD_SUCCESS=true
-              echo "✓ Build successful!"
+          # Build with retries
+          MAX_ATTEMPTS=3
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Build attempt $attempt of $MAX_ATTEMPTS..."
+            if buildozer -v android debug; then
+              echo "✓ Build successful on attempt $attempt"
+              exit 0
             else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -le $MAX_RETRIES ]; then
-                echo "Build failed, retrying in 30s..."
+              echo "Attempt $attempt failed"
+              if [ $attempt -lt $MAX_ATTEMPTS ]; then
+                echo "Retrying in 30 seconds..."
                 sleep 30
-              else
-                echo "❌ Build failed after $MAX_RETRIES retries"
-                exit 1
               fi
             fi
           done
           
-          echo "=== Build completed ==="
-          date
-          
-          # Show last 100 lines of log if build failed
-          if [ $? -ne 0 ]; then
-            echo ""
-            echo "========================================="
-            echo "❌ BUILD FAILED - Last 100 lines of log:"
-            echo "========================================="
-            tail -n 100 build.log
-            echo ""
-            echo "========================================="
-            echo "Searching for ERROR in full log:"
-            echo "========================================="
-            grep -i "error\|exception\|failed" build.log | tail -n 50
-            exit 1
-          fi
-        continue-on-error: false
+          echo "❌ Build failed after $MAX_ATTEMPTS attempts"
+          exit 1
       
-      - name: Save build log as artifact (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: buildozer-error-log
-          path: build.log
-          retention-days: 7
-      
-      - name: Upload APK artifact
+      - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -195,11 +70,12 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       
-      - name: Create Release (on tag)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
+      - name: Upload error log
+        if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          files: bin/*.apk
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: build-error-log
+          path: |
+            .buildozer/android/platform/build-*/dists/*/build.log
+            .buildozer/android/platform/build-*/dist_build.log
+          retention-days: 7
