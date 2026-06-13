@@ -1,81 +1,35 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:
+  workflow_dispatch:  # Nur manueller Trigger - zuverlässiger
 
 jobs:
   build:
-    # Use pre-built Docker image with all Android dependencies
     runs-on: ubuntu-latest
-    container: kivy/buildozer:latest
+    timeout-minutes: 60
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - name: Build APK using pre-built container
+        uses: docker://kivy/buildozer:v1.5.0
         with:
-          submodules: recursive
-      
-      - name: Install requirements
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt || echo "Requirements install failed, continuing..."
-      
-      - name: Show buildozer.spec
-        run: cat buildozer.spec
-      
-      - name: Build APK
-        id: build
-        run: |
-          echo "=== Starting Build ==="
-          date
-          
-          # Set up environment
-          export ANDROID_HOME=/opt/android-sdk
-          export ANDROID_SDK_ROOT=/opt/android-sdk
-          export ANDROID_NDK_HOME=/opt/android-ndk
-          export NDK_HOME=/opt/android-ndk
-          
-          # Clean
-          buildozer android clean || true
-          
-          # Build with retries
-          MAX_ATTEMPTS=3
-          for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            echo "Build attempt $attempt of $MAX_ATTEMPTS..."
-            if buildozer -v android debug; then
-              echo "✓ Build successful on attempt $attempt"
-              exit 0
-            else
-              echo "Attempt $attempt failed"
-              if [ $attempt -lt $MAX_ATTEMPTS ]; then
-                echo "Retrying in 30 seconds..."
-                sleep 30
-              fi
-            fi
-          done
-          
-          echo "❌ Build failed after $MAX_ATTEMPTS attempts"
-          exit 1
+          entrypoint: /bin/bash
+          args: |
+            -c '
+            set -e
+            cd /host
+            echo "=== Build Starting ==="
+            buildozer android clean 2>/dev/null || true
+            buildozer android debug 2>&1 || {
+              echo "Build failed!"
+              exit 1
+            }
+            echo "=== Build Complete ==="
+            '
       
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: docscanner-debug-apk
+          name: docscanner.apk
           path: bin/*.apk
-          if-no-files-found: error
-          retention-days: 30
-      
-      - name: Upload error log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-error-log
-          path: |
-            .buildozer/android/platform/build-*/dists/*/build.log
-            .buildozer/android/platform/build-*/dist_build.log
-          retention-days: 7
