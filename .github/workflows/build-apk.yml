@@ -33,12 +33,14 @@ jobs:
             autoconf \
             automake \
             libtool \
+            libtool-bin \
             cmake \
             git \
             wget \
             unzip \
             openjdk-17-jdk \
-            android-sdk
+            android-sdk \
+            gettext
           sudo rm -rf /var/lib/apt/lists/*
       
       - name: Install Buildozer and dependencies
