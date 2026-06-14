@@ -34,6 +34,8 @@ jobs:
             automake \
             libtool \
             libtool-bin \
+            libltdl-dev \
+            pkg-config \
             cmake \
             git \
             wget \
