@@ -8,91 +8,31 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: kivy/buildozer:stable
+      options: --user root
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install system dependencies
+      - name: Clean .buildozer cache
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            python3-setuptools \
-            build-essential \
-            libffi-dev \
-            libssl-dev \
-            libjpeg-dev \
-            libpng-dev \
-            libfreetype6-dev \
-            libharfbuzz-dev \
-            autoconf \
-            automake \
-            libtool \
-            libtool-bin \
-            libltdl-dev \
-            pkg-config \
-            cmake \
-            git \
-            wget \
-            unzip \
-            openjdk-17-jdk \
-            android-sdk \
-            gettext
-          sudo rm -rf /var/lib/apt/lists/*
-      
-      - name: Install Buildozer and dependencies
-        run: |
-          pip install --upgrade pip
-          pip install buildozer
-          pip install Cython==3.0.8
-          pip install kivy==2.3.0 pillow reportlab
+          rm -rf .buildozer
+          ls -la
       
       - name: Accept Android SDK Licenses
         run: |
-          sudo mkdir -p $ANDROID_HOME/licenses
-          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd24f5443a1d50f65e5a59cb1c3e98e8c4e0e0e0e" | sudo tee $ANDROID_HOME/licenses/android-sdk-license > /dev/null
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" | sudo tee $ANDROID_HOME/licenses/android-sdk-preview-license > /dev/null
-          echo "Licenses accepted"
+          sdkmanager --licenses || true
+          yes | sdkmanager --licenses || true
         env:
-          ANDROID_HOME: /usr/lib/android-sdk
+          ANDROID_HOME: /opt/android-sdk
       
       - name: Build Debug APK
         run: |
           echo "Starting build at $(date)"
-          export ANDROID_HOME=/usr/lib/android-sdk
-          export ANDROID_SDK_ROOT=/usr/lib/android-sdk
-          
-          # Buildozer expects NDK at specific location
-          export ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r25b
-          export NDK_HOME=$ANDROIDNDK
-          
-          # Create directory for NDK
-          mkdir -p $(dirname $ANDROIDNDK)
-          
-          # Download NDK if not present
-          if [ ! -d "$ANDROIDNDK" ]; then
-            echo "Downloading NDK r25b to $ANDROIDNDK..."
-            wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip -O /tmp/ndk.zip
-            cd $(dirname $ANDROIDNDK)
-            unzip -q /tmp/ndk.zip
-            rm /tmp/ndk.zip
-            cd -
-          fi
-          
-          echo "NDK location: $ANDROIDNDK"
-          ls -la $(dirname $ANDROIDNDK)
-          
           buildozer android debug
           echo "Build finished at $(date)"
           ls -lh bin/
-        env:
-          ANDROID_HOME: /usr/lib/android-sdk
-          ANDROID_SDK_ROOT: /usr/lib/android-sdk
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
