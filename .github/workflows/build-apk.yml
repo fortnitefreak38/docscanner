@@ -38,7 +38,7 @@ jobs:
             wget \
             unzip \
             openjdk-17-jdk \
-            android-sdk \
+            android-sdk
           sudo rm -rf /var/lib/apt/lists/*
       
       - name: Install Buildozer and dependencies
