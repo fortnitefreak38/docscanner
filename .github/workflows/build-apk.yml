@@ -8,33 +8,45 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: kivy/buildozer:latest
-      options: --user root
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Clean .buildozer cache (force fresh build)
-        run: |
-          echo "Removing old .buildozer cache..."
-          rm -rf .buildozer
-          echo "Cache removed. Starting fresh."
-          ls -la
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       
-      - name: Show buildozer.spec
+      - name: Install system dependencies
         run: |
-          echo "=== CURRENT buildozer.spec ==="
-          cat buildozer.spec
-          echo "=== REQUIREMENTS LINE ==="
-          grep "^requirements" buildozer.spec
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip \
+            python3-setuptools \
+            build-essential \
+            libffi-dev \
+            libssl-dev \
+            libjpeg-dev \
+            libpng-dev \
+            libfreetype6-dev \
+            libharfbuzz-dev \
+            autoconf \
+            automake \
+            libtool \
+            cmake \
+            git \
+            wget \
+            unzip \
+            openjdk-17-jdk \
+            android-sdk \
+          sudo rm -rf /var/lib/apt/lists/*
       
-      - name: Install pip requirements
+      - name: Install Buildozer and dependencies
         run: |
-          pip3 install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip3 install -r requirements.txt || echo "Requirements install failed"
-          fi
+          pip install --upgrade pip
+          pip install buildozer
+          pip install Cython==3.0.8
+          pip install kivy==2.3.0 pillow reportlab
       
       - name: Accept Android SDK Licenses
         run: |
@@ -42,15 +54,30 @@ jobs:
           echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd24f5443a1d50f65e5a59cb1c3e98e8c4e0e0e0e" > $ANDROID_HOME/licenses/android-sdk-license
           echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           echo "Licenses accepted"
+        env:
+          ANDROID_HOME: /usr/lib/android-sdk
       
       - name: Build Debug APK
         run: |
           echo "Starting build at $(date)"
-          export ANDROID_HOME=/opt/android-sdk
-          export ANDROID_SDK_ROOT=/opt/android-sdk
+          export ANDROID_HOME=/usr/lib/android-sdk
+          export ANDROID_SDK_ROOT=/usr/lib/android-sdk
+          export NDK_HOME=$HOME/android-ndk-r25b
+          
+          # Download NDK if not present
+          if [ ! -d "$NDK_HOME" ]; then
+            echo "Downloading NDK r25b..."
+            wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+            unzip -q android-ndk-r25b-linux.zip
+            rm android-ndk-r25b-linux.zip
+          fi
+          
           buildozer android debug
           echo "Build finished at $(date)"
           ls -lh bin/
+        env:
+          ANDROID_HOME: /usr/lib/android-sdk
+          ANDROID_SDK_ROOT: /usr/lib/android-sdk
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
