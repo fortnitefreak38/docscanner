@@ -62,15 +62,26 @@ jobs:
           echo "Starting build at $(date)"
           export ANDROID_HOME=/usr/lib/android-sdk
           export ANDROID_SDK_ROOT=/usr/lib/android-sdk
-          export NDK_HOME=$HOME/android-ndk-r25b
+          
+          # Buildozer expects NDK at specific location
+          export ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r25b
+          export NDK_HOME=$ANDROIDNDK
+          
+          # Create directory for NDK
+          mkdir -p $(dirname $ANDROIDNDK)
           
           # Download NDK if not present
-          if [ ! -d "$NDK_HOME" ]; then
-            echo "Downloading NDK r25b..."
-            wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-            unzip -q android-ndk-r25b-linux.zip
-            rm android-ndk-r25b-linux.zip
+          if [ ! -d "$ANDROIDNDK" ]; then
+            echo "Downloading NDK r25b to $ANDROIDNDK..."
+            wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip -O /tmp/ndk.zip
+            cd $(dirname $ANDROIDNDK)
+            unzip -q /tmp/ndk.zip
+            rm /tmp/ndk.zip
+            cd -
           fi
+          
+          echo "NDK location: $ANDROIDNDK"
+          ls -la $(dirname $ANDROIDNDK)
           
           buildozer android debug
           echo "Build finished at $(date)"
