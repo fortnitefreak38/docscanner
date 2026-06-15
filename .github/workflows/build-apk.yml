@@ -51,8 +51,8 @@ jobs:
           python -m venv /home/runner/venv
           source /home/runner/venv/bin/activate
           pip install --upgrade pip
-          pip install Cython==3.1.2
-          pip install kivy==3.0.0
+          pip install Cython==3.0.11
+          pip install kivy==2.3.1
           pip install buildozer
           pip install pillow reportlab
           pip install setuptools==68.0.0

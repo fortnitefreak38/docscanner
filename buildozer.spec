@@ -7,13 +7,15 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
 
-requirements = python3,kivy==2.3.0,pil,android,pyjnius
+requirements = python3==3.11.1,kivy==2.3.1,pil,android,pyjnius
 orientation = portrait
 android.permissions = CAMERA,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,INTERNET
 android.api = 33
 android.minapi = 21
 android.ndk = 25b
 android.accept_sdk_license = True
+
+p4a.python_version = 3.11.1
 
 build.kivy_args = --orientation=portrait
 build.profile = armeabi-v7a,arm64-v8a
