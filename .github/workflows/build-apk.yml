@@ -22,6 +22,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             python3-pip \
+            python3-venv \
             python3-setuptools \
             build-essential \
             libffi-dev \
@@ -45,13 +46,16 @@ jobs:
             gettext
           sudo rm -rf /var/lib/apt/lists/*
       
-      - name: Install Python dependencies
+      - name: Create Python virtual environment
         run: |
+          python -m venv /home/runner/venv
+          source /home/runner/venv/bin/activate
           pip install --upgrade pip
           pip install Cython==3.0.8
           pip install kivy==2.3.0
           pip install buildozer
           pip install pillow reportlab
+          pip install setuptools==68.0.0
       
       - name: Accept Android SDK Licenses
         run: |
@@ -71,11 +75,17 @@ jobs:
       
       - name: Build Debug APK
         run: |
+          source /home/runner/venv/bin/activate
+          
           echo "Starting build at $(date)"
+          echo "Python location: $(which python)"
+          echo "Python version: $(python --version)"
+          
           export ANDROID_HOME=/usr/lib/android-sdk
           export ANDROID_SDK_ROOT=/usr/lib/android-sdk
           export ANDROIDNDK=$HOME/android-ndk-r25b
           export NDK_HOME=$ANDROIDNDK
+          export PATH="/home/runner/venv/bin:$PATH"
           
           echo "NDK location: $ANDROIDNDK"
           ls -la $ANDROIDNDK
